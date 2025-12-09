@@ -194,7 +194,11 @@ defmodule BlockScoutWeb.Schemas.API.V2.Transaction.ChainTypeCustomizations do
               nullable: false,
               properties: %{
                 nonce: %Schema{type: :integer},
-                status: %Schema{type: :string, nullable: false, enum: ["Sent", "Relayed", "Failed"]},
+                status: %Schema{
+                  type: :string,
+                  nullable: false,
+                  enum: ["Sent", "Relayed", "Failed"]
+                },
                 sender_address_hash: General.AddressHashNullable,
                 target_address_hash: General.AddressHashNullable,
                 payload: General.HexString,
@@ -257,7 +261,14 @@ defmodule BlockScoutWeb.Schemas.API.V2.Transaction.ChainTypeCustomizations do
                 dapp_fee: General.IntegerString,
                 validator_fee: General.IntegerString
               },
-              required: [:token, :validator_address, :dapp_address, :total_fee, :dapp_fee, :validator_fee],
+              required: [
+                :token,
+                :validator_address,
+                :dapp_address,
+                :total_fee,
+                :dapp_fee,
+                :validator_fee
+              ],
               additionalProperties: false
             }
           }
@@ -409,7 +420,9 @@ defmodule BlockScoutWeb.Schemas.API.V2.Transaction do
             General.DecodedInput,
             %Schema{
               type: :object,
-              properties: %{raw: %Schema{anyOf: [General.HexString, %Schema{type: :string}], nullable: true}},
+              properties: %{
+                raw: %Schema{anyOf: [General.HexString, %Schema{type: :string}], nullable: true}
+              },
               required: [:raw],
               nullable: false,
               additionalProperties: false

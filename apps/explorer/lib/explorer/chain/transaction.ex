@@ -38,7 +38,10 @@ defmodule Explorer.Chain.Transaction.Schema do
                           # elem(quote do ... end, 2) doesn't work with a single has_one instruction
                           quote do
                             [
-                              has_one(:beacon_blob_transaction, BlobTransaction, foreign_key: :hash, references: :hash)
+                              has_one(:beacon_blob_transaction, BlobTransaction,
+                                foreign_key: :hash,
+                                references: :hash
+                              )
                             ]
                           end
 
@@ -110,7 +113,10 @@ defmodule Explorer.Chain.Transaction.Schema do
                                 references: :hash
                               )
 
-                              has_one(:zkevm_batch, through: [:zkevm_batch_transaction, :batch], references: :hash)
+                              has_one(:zkevm_batch,
+                                through: [:zkevm_batch_transaction, :batch],
+                                references: :hash
+                              )
 
                               has_one(:zkevm_sequence_transaction,
                                 through: [:zkevm_batch, :sequence_transaction],
@@ -134,9 +140,18 @@ defmodule Explorer.Chain.Transaction.Schema do
                               )
 
                               has_one(:zksync_batch, through: [:zksync_batch_transaction, :batch])
-                              has_one(:zksync_commit_transaction, through: [:zksync_batch, :commit_transaction])
-                              has_one(:zksync_prove_transaction, through: [:zksync_batch, :prove_transaction])
-                              has_one(:zksync_execute_transaction, through: [:zksync_batch, :execute_transaction])
+
+                              has_one(:zksync_commit_transaction,
+                                through: [:zksync_batch, :commit_transaction]
+                              )
+
+                              has_one(:zksync_prove_transaction,
+                                through: [:zksync_batch, :prove_transaction]
+                              )
+
+                              has_one(:zksync_execute_transaction,
+                                through: [:zksync_batch, :execute_transaction]
+                              )
                             end,
                             2
                           )
@@ -151,7 +166,9 @@ defmodule Explorer.Chain.Transaction.Schema do
                                 references: :hash
                               )
 
-                              has_one(:arbitrum_batch, through: [:arbitrum_batch_transaction, :batch])
+                              has_one(:arbitrum_batch,
+                                through: [:arbitrum_batch_transaction, :batch]
+                              )
 
                               has_one(:arbitrum_commitment_transaction,
                                 through: [:arbitrum_batch, :commitment_transaction]
@@ -213,7 +230,9 @@ defmodule Explorer.Chain.Transaction.Schema do
                                     type: Hash.Address
                                   )
 
-                                  has_one(:gas_token, through: [:gas_token_contract_address, :token])
+                                  has_one(:gas_token,
+                                    through: [:gas_token_contract_address, :token]
+                                  )
                                 end,
                                 2
                               )
@@ -275,10 +294,17 @@ defmodule Explorer.Chain.Transaction.Schema do
           type: Hash.Address
         )
 
-        has_many(:internal_transactions, InternalTransaction, foreign_key: :transaction_hash, references: :hash)
+        has_many(:internal_transactions, InternalTransaction,
+          foreign_key: :transaction_hash,
+          references: :hash
+        )
+
         has_many(:logs, Log, foreign_key: :transaction_hash, references: :hash)
 
-        has_many(:token_transfers, TokenTransfer, foreign_key: :transaction_hash, references: :hash)
+        has_many(:token_transfers, TokenTransfer,
+          foreign_key: :transaction_hash,
+          references: :hash
+        )
 
         has_many(:transaction_actions, TransactionAction,
           foreign_key: :hash,
@@ -309,7 +335,10 @@ defmodule Explorer.Chain.Transaction.Schema do
           references: :hash
         )
 
-        has_one(:pending_operation, PendingTransactionOperation, foreign_key: :transaction_hash, references: :hash)
+        has_one(:pending_operation, PendingTransactionOperation,
+          foreign_key: :transaction_hash,
+          references: :hash
+        )
 
         unquote_splicing(@chain_type_fields)
         unquote_splicing(@chain_identity_fields)
@@ -329,7 +358,10 @@ defmodule Explorer.Chain.Transaction do
     decode_not_a_contract_calls: [:explorer, :decode_not_a_contract_calls]
 
   use Utils.RuntimeEnvHelper,
-    op_jovian_timestamp: [:indexer, [Indexer.Fetcher.Optimism.EIP1559ConfigUpdate, :jovian_timestamp_l2]]
+    op_jovian_timestamp: [
+      :indexer,
+      [Indexer.Fetcher.Optimism.EIP1559ConfigUpdate, :jovian_timestamp_l2]
+    ]
 
   require Logger
   require Explorer.Chain.Transaction.Schema
@@ -784,7 +816,11 @@ defmodule Explorer.Chain.Transaction do
     }
   ]
 
-  defp process_hex_revert_reason(hex_revert_reason, %__MODULE__{to_address: smart_contract, hash: hash}, options) do
+  defp process_hex_revert_reason(
+         hex_revert_reason,
+         %__MODULE__{to_address: smart_contract, hash: hash},
+         options
+       ) do
     case Base.decode16(hex_revert_reason, case: :mixed) do
       {:ok, binary_revert_reason} ->
         case find_and_decode(@default_error_abi, binary_revert_reason, hash) do
@@ -820,7 +856,8 @@ defmodule Explorer.Chain.Transaction do
         ) :: error_type | success_type
         when methods_map: map(),
              smart_contract_full_abi_map: map(),
-             error_type: {:error, any()} | {:error, :contract_not_verified | :contract_verified, list()},
+             error_type:
+               {:error, any()} | {:error, :contract_not_verified | :contract_verified, list()},
              success_type: {:ok | binary(), any()} | {:ok, binary(), binary(), list()}
   def decoded_input_data(
         transaction,
@@ -955,7 +992,10 @@ defmodule Explorer.Chain.Transaction do
       end)
 
     {:error, :contract_not_verified,
-     if(candidates == [], do: decode_function_call_via_sig_provider(input, hash, skip_sig_provider?), else: candidates)}
+     if(candidates == [],
+       do: decode_function_call_via_sig_provider(input, hash, skip_sig_provider?),
+       else: candidates
+     )}
   end
 
   # if to_address is not loaded and input is not a method call return error
@@ -1113,7 +1153,8 @@ defmodule Explorer.Chain.Transaction do
 
   defp upcase_first(string, false), do: string
 
-  defp upcase_first(<<first::utf8, rest::binary>>, true), do: String.upcase(<<first::utf8>>) <> rest
+  defp upcase_first(<<first::utf8, rest::binary>>, true),
+    do: String.upcase(<<first::utf8>>) <> rest
 
   defp function_call(name, mapping) do
     text =
@@ -1180,15 +1221,22 @@ defmodule Explorer.Chain.Transaction do
   """
   def matching_address_queries_list(query, direction, address_hashes, custom_sorting \\ [])
 
-  def matching_address_queries_list(query, :from, address_hashes, _custom_sorting) when is_list(address_hashes) do
+  def matching_address_queries_list(query, :from, address_hashes, _custom_sorting)
+      when is_list(address_hashes) do
     [
       from(
-        a in fragment("SELECT unnest(?) as from_address_hash", type(^address_hashes, {:array, Hash.Address})),
+        a in fragment(
+          "SELECT unnest(?) as from_address_hash",
+          type(^address_hashes, {:array, Hash.Address})
+        ),
         as: :address_hashes,
         cross_lateral_join:
           transaction in subquery(
             query
-            |> where([transaction], transaction.from_address_hash == parent_as(:address_hashes).from_address_hash)
+            |> where(
+              [transaction],
+              transaction.from_address_hash == parent_as(:address_hashes).from_address_hash
+            )
           ),
         as: :transaction,
         select: transaction
@@ -1196,15 +1244,22 @@ defmodule Explorer.Chain.Transaction do
     ]
   end
 
-  def matching_address_queries_list(query, :to, address_hashes, _custom_sorting) when is_list(address_hashes) do
+  def matching_address_queries_list(query, :to, address_hashes, _custom_sorting)
+      when is_list(address_hashes) do
     [
       from(
-        a in fragment("SELECT unnest(?) as to_address_hash", type(^address_hashes, {:array, Hash.Address})),
+        a in fragment(
+          "SELECT unnest(?) as to_address_hash",
+          type(^address_hashes, {:array, Hash.Address})
+        ),
         as: :address_hashes,
         cross_lateral_join:
           transaction in subquery(
             query
-            |> where([transaction], transaction.to_address_hash == parent_as(:address_hashes).to_address_hash)
+            |> where(
+              [transaction],
+              transaction.to_address_hash == parent_as(:address_hashes).to_address_hash
+            )
           ),
         as: :transaction,
         select: transaction
@@ -1220,7 +1275,8 @@ defmodule Explorer.Chain.Transaction do
             query
             |> where(
               [transaction],
-              transaction.created_contract_address_hash == parent_as(:address_hashes).created_contract_address_hash
+              transaction.created_contract_address_hash ==
+                parent_as(:address_hashes).created_contract_address_hash
             )
           ),
         as: :transaction,
@@ -1229,7 +1285,8 @@ defmodule Explorer.Chain.Transaction do
     ]
   end
 
-  def matching_address_queries_list(query, _direction, address_hashes, _custom_sorting) when is_list(address_hashes) do
+  def matching_address_queries_list(query, _direction, address_hashes, _custom_sorting)
+      when is_list(address_hashes) do
     matching_address_queries_list(query, :from, address_hashes) ++
       matching_address_queries_list(query, :to, address_hashes)
   end
@@ -1332,7 +1389,8 @@ defmodule Explorer.Chain.Transaction do
   end
 
   defp validate_error(%Changeset{} = changeset) do
-    if Changeset.get_field(changeset, :status) != :error and Changeset.get_field(changeset, :error) != nil do
+    if Changeset.get_field(changeset, :status) != :error and
+         Changeset.get_field(changeset, :error) != nil do
       Changeset.add_error(changeset, :error, @error_message)
     else
       changeset
@@ -1355,7 +1413,13 @@ defmodule Explorer.Chain.Transaction do
   """
   def transactions_with_token_transfers(address_hash, token_hash) do
     query = transactions_with_token_transfers_query(address_hash, token_hash)
-    preloads = DenormalizationHelper.extend_block_preload([:from_address, :to_address, :created_contract_address])
+
+    preloads =
+      DenormalizationHelper.extend_block_preload([
+        :from_address,
+        :to_address,
+        :created_contract_address
+      ])
 
     from(
       t in subquery(query),
@@ -1377,7 +1441,13 @@ defmodule Explorer.Chain.Transaction do
 
   def transactions_with_token_transfers_direction(direction, address_hash) do
     query = transactions_with_token_transfers_query_direction(direction, address_hash)
-    preloads = DenormalizationHelper.extend_block_preload([:from_address, :to_address, :created_contract_address])
+
+    preloads =
+      DenormalizationHelper.extend_block_preload([
+        :from_address,
+        :to_address,
+        :created_contract_address
+      ])
 
     from(
       t in subquery(query),
@@ -1484,7 +1554,8 @@ defmodule Explorer.Chain.Transaction do
           start_timestamp :: non_neg_integer()
         ) :: {:ok, accumulator}
         when accumulator: term()
-  def stream_transactions_without_operator_fee(initial, reducer, start_timestamp) when is_function(reducer, 2) do
+  def stream_transactions_without_operator_fee(initial, reducer, start_timestamp)
+      when is_function(reducer, 2) do
     limit = Application.get_env(:indexer, Indexer.Fetcher.Optimism.OperatorFee)[:init_limit]
     start_datetime = DateTime.from_unix!(start_timestamp)
 
@@ -1492,7 +1563,8 @@ defmodule Explorer.Chain.Transaction do
     |> select([t], t.hash)
     |> where(
       [t],
-      t.block_timestamp >= ^start_datetime and t.block_consensus == true and is_nil(t.operator_fee_constant)
+      t.block_timestamp >= ^start_datetime and t.block_consensus == true and
+        is_nil(t.operator_fee_constant)
     )
     |> limit(^limit)
     |> Repo.stream_reduce(initial, reducer)
@@ -1570,7 +1642,9 @@ defmodule Explorer.Chain.Transaction do
     blocks_range = address_to_transactions_tasks_range_of_blocks(address_hash, options)
 
     rewards_task =
-      Task.async(fn -> Reward.fetch_emission_rewards_tuples(address_hash, paging_options, blocks_range, options) end)
+      Task.async(fn ->
+        Reward.fetch_emission_rewards_tuples(address_hash, paging_options, blocks_range, options)
+      end)
 
     [rewards_task | address_to_transactions_tasks(address_hash, options, true)]
     |> wait_for_address_transactions()
@@ -1604,7 +1678,10 @@ defmodule Explorer.Chain.Transaction do
         extremum_query =
           from(
             q in subquery(query),
-            select: %{min_block_number: min(q.block_number), max_block_number: max(q.block_number)}
+            select: %{
+              min_block_number: min(q.block_number),
+              max_block_number: max(q.block_number)
+            }
           )
 
         extremum_query
@@ -1613,8 +1690,10 @@ defmodule Explorer.Chain.Transaction do
 
     extremums_list
     |> Enum.reduce(%{min_block_number: nil, max_block_number: 0}, fn %{
-                                                                       min_block_number: min_number,
-                                                                       max_block_number: max_number
+                                                                       min_block_number:
+                                                                         min_number,
+                                                                       max_block_number:
+                                                                         max_number
                                                                      },
                                                                      extremums_result ->
       current_min_number = Map.get(extremums_result, :min_block_number)
@@ -1636,24 +1715,40 @@ defmodule Explorer.Chain.Transaction do
     |> matching_address_queries_list(direction, address_hash)
   end
 
-  defp process_extremums_result_against_min_number(extremums_result, current_min_number, min_number)
+  defp process_extremums_result_against_min_number(
+         extremums_result,
+         current_min_number,
+         min_number
+       )
        when is_number(current_min_number) and
               not (is_number(min_number) and min_number > 0 and min_number < current_min_number) do
     extremums_result
   end
 
-  defp process_extremums_result_against_min_number(extremums_result, _current_min_number, min_number) do
+  defp process_extremums_result_against_min_number(
+         extremums_result,
+         _current_min_number,
+         min_number
+       ) do
     extremums_result
     |> Map.put(:min_block_number, min_number)
   end
 
-  defp process_extremums_result_against_max_number(extremums_result, current_max_number, max_number)
+  defp process_extremums_result_against_max_number(
+         extremums_result,
+         current_max_number,
+         max_number
+       )
        when is_number(max_number) and max_number > 0 and max_number > current_max_number do
     extremums_result
     |> Map.put(:max_block_number, max_number)
   end
 
-  defp process_extremums_result_against_max_number(extremums_result, _current_max_number, _max_number) do
+  defp process_extremums_result_against_max_number(
+         extremums_result,
+         _current_max_number,
+         _max_number
+       ) do
     extremums_result
   end
 
@@ -1686,7 +1781,11 @@ defmodule Explorer.Chain.Transaction do
   defp address_to_transactions_tasks(address_hash, options, old_ui?) do
     direction = Keyword.get(options, :direction)
     necessity_by_association = Keyword.get(options, :necessity_by_association, %{})
-    old_ui? = old_ui? || is_tuple(Keyword.get(options, :paging_options, Chain.default_paging_options()).key)
+
+    old_ui? =
+      old_ui? ||
+        is_tuple(Keyword.get(options, :paging_options, Chain.default_paging_options()).key)
+
     sorting_options = Keyword.get(options, :sorting, [])
 
     options
@@ -1761,11 +1860,21 @@ defmodule Explorer.Chain.Transaction do
     end
   end
 
-  defp compare_custom_sorting([{:desc, :block_number}, {:desc, :index}, {:desc, :inserted_at}, {:asc, :hash}]),
-    do: &compare_default_sorting/2
+  defp compare_custom_sorting([
+         {:desc, :block_number},
+         {:desc, :index},
+         {:desc, :inserted_at},
+         {:asc, :hash}
+       ]),
+       do: &compare_default_sorting/2
 
-  defp compare_custom_sorting([{:asc, :block_number}, {:asc, :index}, {:asc, :inserted_at}, {:desc, :hash}]),
-    do: &(!compare_default_sorting(&1, &2))
+  defp compare_custom_sorting([
+         {:asc, :block_number},
+         {:asc, :index},
+         {:asc, :inserted_at},
+         {:desc, :hash}
+       ]),
+       do: &(!compare_default_sorting(&1, &2))
 
   defp compare_custom_sorting([{:dynamic, :fee, order, _dynamic_fee}]) do
     fn a, b ->
@@ -1808,9 +1917,19 @@ defmodule Explorer.Chain.Transaction do
   from_block (may be nil), to_block (may be nil) and boolean `with_pending?` that indicates if pending transactions should be included
   into the query.
   """
-  @spec fetch_transactions(PagingOptions.t() | nil, non_neg_integer | nil, non_neg_integer | nil, boolean()) ::
+  @spec fetch_transactions(
+          PagingOptions.t() | nil,
+          non_neg_integer | nil,
+          non_neg_integer | nil,
+          boolean()
+        ) ::
           Ecto.Query.t()
-  def fetch_transactions(paging_options \\ nil, from_block \\ nil, to_block \\ nil, with_pending? \\ false) do
+  def fetch_transactions(
+        paging_options \\ nil,
+        from_block \\ nil,
+        to_block \\ nil,
+        with_pending? \\ false
+      ) do
     __MODULE__
     |> order_for_transactions(with_pending?)
     |> BlockReaderGeneral.where_block_number_in_period(from_block, to_block)
@@ -1861,7 +1980,8 @@ defmodule Explorer.Chain.Transaction do
   @doc """
   Updates the provided query with necessary `where`s and `limit`s to take into account paging_options (may be nil).
   """
-  @spec handle_paging_options(Ecto.Query.t() | atom, nil | Explorer.PagingOptions.t()) :: Ecto.Query.t()
+  @spec handle_paging_options(Ecto.Query.t() | atom, nil | Explorer.PagingOptions.t()) ::
+          Ecto.Query.t()
   def handle_paging_options(query, nil), do: query
 
   def handle_paging_options(query, %PagingOptions{key: nil, page_size: nil}), do: query
@@ -1889,7 +2009,10 @@ defmodule Explorer.Chain.Transaction do
     )
   end
 
-  def page_transaction(query, %PagingOptions{key: {block_number, index}, is_index_in_asc_order: true}) do
+  def page_transaction(query, %PagingOptions{
+        key: {block_number, index},
+        is_index_in_asc_order: true
+      }) do
     where(
       query,
       [transaction],
@@ -1930,7 +2053,8 @@ defmodule Explorer.Chain.Transaction do
   @doc """
   Updates the provided query with necessary `where`s to take into account paging_options.
   """
-  @spec page_pending_transaction(Ecto.Query.t() | atom, Explorer.PagingOptions.t()) :: Ecto.Query.t()
+  @spec page_pending_transaction(Ecto.Query.t() | atom, Explorer.PagingOptions.t()) ::
+          Ecto.Query.t()
   def page_pending_transaction(query, %PagingOptions{key: nil}), do: query
 
   def page_pending_transaction(query, %PagingOptions{key: {inserted_at, hash}}) do
@@ -1963,7 +2087,8 @@ defmodule Explorer.Chain.Transaction do
     `select_merge` (when second parameter is `false`)
   - The original query unchanged (when second parameter is `true`)
   """
-  @spec put_has_token_transfers_to_transaction(Ecto.Query.t() | atom, boolean, keyword) :: Ecto.Query.t()
+  @spec put_has_token_transfers_to_transaction(Ecto.Query.t() | atom, boolean, keyword) ::
+          Ecto.Query.t()
   def put_has_token_transfers_to_transaction(query, old_ui?, options \\ [])
 
   def put_has_token_transfers_to_transaction(query, true, _options), do: query
@@ -1999,7 +2124,10 @@ defmodule Explorer.Chain.Transaction do
   """
   @spec dynamic_fee :: Ecto.Query.dynamic_expr()
   def dynamic_fee do
-    dynamic([transaction], transaction.gas_price * fragment("COALESCE(?, ?)", transaction.gas_used, transaction.gas))
+    dynamic(
+      [transaction],
+      transaction.gas_price * fragment("COALESCE(?, ?)", transaction.gas_used, transaction.gas)
+    )
   end
 
   @doc """
@@ -2009,7 +2137,13 @@ defmodule Explorer.Chain.Transaction do
           required(atom()) => Decimal.t() | Wei.t() | non_neg_integer | DateTime.t() | Hash.t()
         }
   def address_transactions_next_page_params(
-        %__MODULE__{block_number: block_number, index: index, inserted_at: inserted_at, hash: hash, value: value} =
+        %__MODULE__{
+          block_number: block_number,
+          index: index,
+          inserted_at: inserted_at,
+          hash: hash,
+          value: value
+        } =
           transaction
       ) do
     %{
@@ -2051,7 +2185,8 @@ defmodule Explorer.Chain.Transaction do
       {:actual, Decimal.new(4)}
 
   """
-  @spec fee(Transaction.t(), :ether | :gwei | :wei) :: {:maximum, Decimal.t() | nil} | {:actual, Decimal.t() | nil}
+  @spec fee(Transaction.t(), :ether | :gwei | :wei) ::
+          {:maximum, Decimal.t() | nil} | {:actual, Decimal.t() | nil}
   def fee(%Transaction{gas: _gas, gas_price: nil, gas_used: nil}, _unit), do: {:maximum, nil}
 
   def fee(%Transaction{gas: gas, gas_price: _gas_price, gas_used: nil} = transaction, unit) do
@@ -2133,7 +2268,8 @@ defmodule Explorer.Chain.Transaction do
     jovian_timestamp = op_jovian_timestamp()
 
     block_timestamp =
-      Map.get(transaction, :block_timestamp) || (jovian_timestamp && DateTime.from_unix!(jovian_timestamp)) ||
+      Map.get(transaction, :block_timestamp) ||
+        (jovian_timestamp && DateTime.from_unix!(jovian_timestamp)) ||
         DateTime.from_unix!(0)
 
     if DateTime.to_unix(block_timestamp) >= jovian_timestamp do
@@ -2155,7 +2291,8 @@ defmodule Explorer.Chain.Transaction do
     The execution fee a `transaction` paid for the `t:Explorer.Chain.Transaction.t/0` `gas`.
     Doesn't include L1 fee. See the description for the `fee` function for parameters and return values.
   """
-  @spec l2_fee(Transaction.t(), :ether | :gwei | :wei) :: {:maximum, Decimal.t() | nil} | {:actual, Decimal.t() | nil}
+  @spec l2_fee(Transaction.t(), :ether | :gwei | :wei) ::
+          {:maximum, Decimal.t() | nil} | {:actual, Decimal.t() | nil}
   def l2_fee(%Transaction{gas: _gas, gas_price: nil, gas_used: nil}, _unit), do: {:maximum, nil}
 
   def l2_fee(%Transaction{gas: gas, gas_price: gas_price, gas_used: nil}, unit) do
@@ -2181,7 +2318,8 @@ defmodule Explorer.Chain.Transaction do
   Wrapper around `effective_gas_price/2`
   """
   @spec effective_gas_price(Transaction.t()) :: Wei.t() | nil
-  def effective_gas_price(%Transaction{} = transaction), do: effective_gas_price(transaction, transaction.block)
+  def effective_gas_price(%Transaction{} = transaction),
+    do: effective_gas_price(transaction, transaction.block)
 
   @doc """
   Calculates effective gas price for transaction with type 2 (EIP-1559)
@@ -2198,7 +2336,8 @@ defmodule Explorer.Chain.Transaction do
     max_priority_fee_per_gas = transaction.max_priority_fee_per_gas
     max_fee_per_gas = transaction.max_fee_per_gas
 
-    priority_fee_per_gas = priority_fee_per_gas(max_priority_fee_per_gas, base_fee_per_gas, max_fee_per_gas)
+    priority_fee_per_gas =
+      priority_fee_per_gas(max_priority_fee_per_gas, base_fee_per_gas, max_fee_per_gas)
 
     priority_fee_per_gas && Wei.sum(priority_fee_per_gas, base_fee_per_gas)
   end
@@ -2233,7 +2372,8 @@ defmodule Explorer.Chain.Transaction do
       _ ->
         dynamic(
           [transaction],
-          transaction.from_address_hash == ^address_hash or transaction.to_address_hash == ^address_hash
+          transaction.from_address_hash == ^address_hash or
+            transaction.to_address_hash == ^address_hash
         )
     end
   end
@@ -2259,7 +2399,9 @@ defmodule Explorer.Chain.Transaction do
   Where
     - `decoded_input_data` is list of results: either `{:ok, _identifier, _text, _mapping}` or `nil`
   """
-  @spec decode_transactions([Transaction.t()], boolean(), Keyword.t()) :: [nil | {:ok, String.t(), String.t(), map()}]
+  @spec decode_transactions([Transaction.t()], boolean(), Keyword.t()) :: [
+          nil | {:ok, String.t(), String.t(), map()}
+        ]
   def decode_transactions(transactions, skip_sig_provider?, opts) do
     smart_contract_full_abi_map = combine_smart_contract_full_abi_map(transactions)
 
@@ -2281,7 +2423,12 @@ defmodule Explorer.Chain.Transaction do
       transactions
       |> Enum.map(fn transaction ->
         transaction
-        |> decoded_input_data(skip_sig_provider?, opts, empty_methods_map, smart_contract_full_abi_map)
+        |> decoded_input_data(
+          skip_sig_provider?,
+          opts,
+          empty_methods_map,
+          smart_contract_full_abi_map
+        )
         |> format_decoded_input()
       end)
       |> Enum.zip(transactions)
@@ -2393,7 +2540,10 @@ defmodule Explorer.Chain.Transaction do
   end
 
   def method_name(
-        %__MODULE__{to_address: to_address, input: %{bytes: <<method_id::binary-size(4), _::binary>>}},
+        %__MODULE__{
+          to_address: to_address,
+          input: %{bytes: <<method_id::binary-size(4), _::binary>>}
+        },
         _,
         skip_sc_check?
       ) do

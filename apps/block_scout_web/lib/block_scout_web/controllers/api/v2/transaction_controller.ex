@@ -30,7 +30,8 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
       type_filter_options: 1
     ]
 
-  import Explorer.MicroserviceInterfaces.BENS, only: [maybe_preload_ens: 1, maybe_preload_ens_to_transaction: 1]
+  import Explorer.MicroserviceInterfaces.BENS,
+    only: [maybe_preload_ens: 1, maybe_preload_ens_to_transaction: 1]
 
   import Explorer.MicroserviceInterfaces.Metadata,
     only: [maybe_preload_metadata: 1, maybe_preload_metadata_to_transaction: 1]
@@ -46,7 +47,10 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
 
   alias BlockScoutWeb.AccessHelper
   alias BlockScoutWeb.API.V2.{BlobView, Ethereum.DepositController, Ethereum.DepositView}
-  alias BlockScoutWeb.MicroserviceInterfaces.TransactionInterpretation, as: TransactionInterpretationService
+
+  alias BlockScoutWeb.MicroserviceInterfaces.TransactionInterpretation,
+    as: TransactionInterpretationService
+
   alias BlockScoutWeb.Models.TransactionStateHelper
   alias BlockScoutWeb.Schemas.API.V2.ErrorResponses.{ForbiddenResponse, NotFoundResponse}
   alias Explorer.{Chain, PagingOptions, Repo}
@@ -113,40 +117,58 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
                                             ]
                                           ] => :optional
                                         }
-                                        |> Map.merge(@chain_type_transaction_necessity_by_association)
+                                        |> Map.merge(
+                                          @chain_type_transaction_necessity_by_association
+                                        )
 
   @token_transfers_necessity_by_association %{
-    [from_address: [:scam_badge, :names, :smart_contract, proxy_implementations_association()]] => :optional,
-    [to_address: [:scam_badge, :names, :smart_contract, proxy_implementations_association()]] => :optional,
+    [from_address: [:scam_badge, :names, :smart_contract, proxy_implementations_association()]] =>
+      :optional,
+    [to_address: [:scam_badge, :names, :smart_contract, proxy_implementations_association()]] =>
+      :optional,
     [token: reputation_association()] => :optional
   }
 
   @token_transfers_in_transaction_necessity_by_association %{
-    [from_address: [:scam_badge, :names, :smart_contract, proxy_implementations_association()]] => :optional,
-    [to_address: [:scam_badge, :names, :smart_contract, proxy_implementations_association()]] => :optional,
+    [from_address: [:scam_badge, :names, :smart_contract, proxy_implementations_association()]] =>
+      :optional,
+    [to_address: [:scam_badge, :names, :smart_contract, proxy_implementations_association()]] =>
+      :optional,
     [token: reputation_association()] => :optional
   }
 
   @internal_transaction_necessity_by_association [
     necessity_by_association: %{
-      [created_contract_address: [:scam_badge, :names, :smart_contract, proxy_implementations_association()]] =>
+      [
+        created_contract_address: [
+          :scam_badge,
+          :names,
+          :smart_contract,
+          proxy_implementations_association()
+        ]
+      ] => :optional,
+      [from_address: [:scam_badge, :names, :smart_contract, proxy_implementations_association()]] =>
         :optional,
-      [from_address: [:scam_badge, :names, :smart_contract, proxy_implementations_association()]] => :optional,
-      [to_address: [:scam_badge, :names, :smart_contract, proxy_implementations_association()]] => :optional
+      [to_address: [:scam_badge, :names, :smart_contract, proxy_implementations_association()]] =>
+        :optional
     }
   ]
 
   @api_true [api?: true]
 
-  operation :transaction,
+  operation(:transaction,
     summary: "Retrieve detailed information about a specific transaction",
-    description: "Retrieves detailed information for a specific transaction identified by its hash.",
+    description:
+      "Retrieves detailed information for a specific transaction identified by its hash.",
     parameters: [transaction_hash_param() | base_params()],
     responses: [
-      ok: {"Detailed information about the specified transaction.", "application/json", Schemas.Transaction.Response},
+      ok:
+        {"Detailed information about the specified transaction.", "application/json",
+         Schemas.Transaction.Response},
       not_found: NotFoundResponse.response(),
       unprocessable_entity: JsonErrorResponse.response()
     ]
+  )
 
   @doc """
     Function to handle GET requests to `/api/v2/transactions/:transaction_hash_param` endpoint.
@@ -195,13 +217,16 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
       [necessity_by_association: necessity_by_association]
       |> Keyword.merge(@api_true)
 
-    with {:ok, transaction, _transaction_hash} <- validate_transaction(transaction_hash_string, params, options),
+    with {:ok, transaction, _transaction_hash} <-
+           validate_transaction(transaction_hash_string, params, options),
          preloaded <-
            Chain.preload_token_transfers(
              transaction,
              @token_transfers_in_transaction_necessity_by_association,
              @api_true |> fetch_scam_token_toggle(conn)
            ) do
+      gas_fee_grant_info = fetch_gas_fee_grant_info(transaction)
+
       conn
       |> put_status(200)
       |> render(:transaction, %{
@@ -209,14 +234,34 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
           preloaded
           |> Instance.preload_nft(@api_true)
           |> maybe_preload_ens_to_transaction()
-          |> maybe_preload_metadata_to_transaction()
+          |> maybe_preload_metadata_to_transaction(),
+        gas_fee_grant_info: gas_fee_grant_info
       })
     end
   end
 
-  operation :transactions,
+  defp fetch_gas_fee_grant_info(transaction) do
+    if transaction.to_address_hash do
+      case Indexer.Fetcher.GasFeeGrant.fetch_grant(
+             to_string(transaction.from_address_hash),
+             to_string(transaction.to_address_hash),
+             transaction.block_number
+           ) do
+        {:ok, %{granter: granter, period_can_spend: val}} ->
+          %{amount: to_string(val), granter: granter}
+
+        _ ->
+          nil
+      end
+    else
+      nil
+    end
+  end
+
+  operation(:transactions,
     summary: "List blockchain transactions with filtering options for status, type, and method",
-    description: "Retrieves a paginated list of transactions with optional filtering by status, type, and method.",
+    description:
+      "Retrieves a paginated list of transactions with optional filtering by status, type, and method.",
     parameters:
       base_params() ++
         [transaction_filter_param()] ++
@@ -235,6 +280,7 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
          )},
       unprocessable_entity: JsonErrorResponse.response()
     ]
+  )
 
   @doc """
     Function to handle GET requests to `/api/v2/transactions` endpoint.
@@ -266,7 +312,7 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
     })
   end
 
-  operation :polygon_zkevm_batch,
+  operation(:polygon_zkevm_batch,
     summary: "List L2 transactions in a Polygon ZkEVM batch",
     description: "Retrieves L2 transactions bound to a specific Polygon ZkEVM batch number.",
     parameters: [batch_number_param() | base_params()],
@@ -284,6 +330,7 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
          }},
       unprocessable_entity: JsonErrorResponse.response()
     ]
+  )
 
   @doc """
     Function to handle GET requests to `/api/v2/transactions/zkevm-batch/:batch_number` endpoint.
@@ -309,7 +356,7 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
     })
   end
 
-  operation :zksync_batch,
+  operation(:zksync_batch,
     summary: "List L2 transactions in a ZkSync batch",
     description: "Retrieves L2 transactions bound to a specific ZkSync batch number.",
     parameters:
@@ -329,6 +376,7 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
          )},
       unprocessable_entity: JsonErrorResponse.response()
     ]
+  )
 
   @doc """
     Function to handle GET requests to `/api/v2/transactions/zksync-batch/:batch_number` endpoint.
@@ -339,7 +387,7 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
     handle_batch_transactions(conn, params, &ZkSyncReader.batch_transactions/2)
   end
 
-  operation :arbitrum_batch,
+  operation(:arbitrum_batch,
     summary: "List L2 transactions in an Arbitrum batch",
     description: "Retrieves L2 transactions bound to a specific Arbitrum batch number.",
     parameters:
@@ -359,6 +407,7 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
          )},
       unprocessable_entity: JsonErrorResponse.response()
     ]
+  )
 
   @doc """
     Function to handle GET requests to `/api/v2/transactions/arbitrum-batch/:batch_number` endpoint.
@@ -369,7 +418,7 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
     handle_batch_transactions(conn, params, &ArbitrumSettlementReader.batch_transactions/2)
   end
 
-  operation :external_transactions,
+  operation(:external_transactions,
     summary: "List external transactions linked to a transaction",
     description:
       "Retrieves external transactions that are linked to the specified transaction (e.g., Solana transactions in `neon` chain type).",
@@ -381,6 +430,7 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
       not_found: NotFoundResponse.response(),
       unprocessable_entity: JsonErrorResponse.response()
     ]
+  )
 
   @doc """
     Function to handle GET requests to `/api/v2/transactions/:transaction_hash_param/external-transactions` endpoint.
@@ -410,7 +460,7 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
     end
   end
 
-  operation :optimism_batch,
+  operation(:optimism_batch,
     summary: "List L2 transactions in an Optimism batch",
     description: "Retrieves L2 transactions bound to a specific Optimism batch number.",
     parameters:
@@ -430,6 +480,7 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
          )},
       unprocessable_entity: JsonErrorResponse.response()
     ]
+  )
 
   @doc """
     Function to handle GET requests to `/api/v2/transactions/optimism-batch/:batch_number` endpoint.
@@ -439,13 +490,16 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
   def optimism_batch(conn, %{batch_number_param: batch_number_string} = params) do
     {batch_number, ""} = Integer.parse(batch_number_string)
 
-    l2_block_number_from = OptimismTransactionBatch.edge_l2_block_number(batch_number, :min, @api_true)
-    l2_block_number_to = OptimismTransactionBatch.edge_l2_block_number(batch_number, :max, @api_true)
+    l2_block_number_from =
+      OptimismTransactionBatch.edge_l2_block_number(batch_number, :min, @api_true)
+
+    l2_block_number_to =
+      OptimismTransactionBatch.edge_l2_block_number(batch_number, :max, @api_true)
 
     handle_block_range_transactions(conn, params, l2_block_number_from, l2_block_number_to)
   end
 
-  operation :scroll_batch,
+  operation(:scroll_batch,
     summary: "List L2 transactions in a Scroll batch",
     description: "Retrieves L2 transactions bound to a specific Scroll batch number.",
     parameters:
@@ -465,6 +519,7 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
          )},
       unprocessable_entity: JsonErrorResponse.response()
     ]
+  )
 
   @doc """
     Function to handle GET requests to `/api/v2/transactions/scroll-batch/:batch_number` endpoint.
@@ -496,7 +551,12 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
   #
   # ## Returns
   # - Updated connection object with the transactions data rendered.
-  @spec handle_block_range_transactions(Plug.Conn.t(), map(), non_neg_integer(), non_neg_integer()) :: Plug.Conn.t()
+  @spec handle_block_range_transactions(
+          Plug.Conn.t(),
+          map(),
+          non_neg_integer(),
+          non_neg_integer()
+        ) :: Plug.Conn.t()
   defp handle_block_range_transactions(conn, params, l2_block_number_from, l2_block_number_to) do
     transactions_plus_one =
       if is_nil(l2_block_number_from) or is_nil(l2_block_number_to) do
@@ -512,7 +572,11 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
             _ ->
               # here we need to subtract 1 because the block range inside the `fetch_transactions` function
               # starts from the `from_block + 1`
-              Transaction.fetch_transactions(paging_options, l2_block_number_from - 1, l2_block_number_to)
+              Transaction.fetch_transactions(
+                paging_options,
+                l2_block_number_from - 1,
+                l2_block_number_to
+              )
           end
 
         query
@@ -547,7 +611,11 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
   # ## Returns
   # - Updated connection object with the transactions data rendered.
   @spec handle_batch_transactions(Plug.Conn.t(), map(), function()) :: Plug.Conn.t()
-  defp handle_batch_transactions(conn, %{batch_number_param: batch_number} = params, batch_transactions_fun) do
+  defp handle_batch_transactions(
+         conn,
+         %{batch_number_param: batch_number} = params,
+         batch_transactions_fun
+       ) do
     full_options =
       [
         necessity_by_association: @transaction_necessity_by_association
@@ -576,11 +644,12 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
     })
   end
 
-  operation :execution_node,
+  operation(:execution_node,
     summary: "List transactions executed on a specific execution node",
     description: "Retrieves transactions that were executed on the specified execution node.",
     parameters:
-      [execution_node_hash_param() | base_params()] ++ define_paging_params(["block_number", "index", "items_count"]),
+      [execution_node_hash_param() | base_params()] ++
+        define_paging_params(["block_number", "index", "items_count"]),
     responses: [
       ok:
         {"List of transactions.", "application/json",
@@ -595,6 +664,7 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
          )},
       unprocessable_entity: JsonErrorResponse.response()
     ]
+  )
 
   @doc """
     Function to handle GET requests to `/api/v2/transactions/:execution_node_hash_param/execution-node` endpoint.
@@ -602,13 +672,17 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
   """
   @spec execution_node(Plug.Conn.t(), map()) :: Plug.Conn.t() | {atom(), any()}
   def execution_node(conn, %{execution_node_hash_param: execution_node_hash_string} = params) do
-    with {:format, {:ok, execution_node_hash}} <- {:format, Chain.string_to_address_hash(execution_node_hash_string)} do
+    with {:format, {:ok, execution_node_hash}} <-
+           {:format, Chain.string_to_address_hash(execution_node_hash_string)} do
       full_options =
         [necessity_by_association: @transaction_necessity_by_association]
-        |> Keyword.merge(put_key_value_to_paging_options(paging_options(params), :is_index_in_asc_order, true))
+        |> Keyword.merge(
+          put_key_value_to_paging_options(paging_options(params), :is_index_in_asc_order, true)
+        )
         |> Keyword.merge(@api_true)
 
-      transactions_plus_one = Chain.execution_node_to_transactions(execution_node_hash, full_options)
+      transactions_plus_one =
+        Chain.execution_node_to_transactions(execution_node_hash, full_options)
 
       {transactions, next_page} = split_list_by_page(transactions_plus_one)
 
@@ -625,23 +699,27 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
     end
   end
 
-  operation :raw_trace,
+  operation(:raw_trace,
     summary: "Get step-by-step execution trace for a specific transaction",
     description:
       "Retrieves the raw execution trace for a transaction, showing the step-by-step execution path and all contract interactions.",
     parameters: [transaction_hash_param() | base_params()],
     responses: [
-      ok: {"Raw execution trace for the specified transaction.", "application/json", Schemas.Transaction.RawTrace},
+      ok:
+        {"Raw execution trace for the specified transaction.", "application/json",
+         Schemas.Transaction.RawTrace},
       not_found: NotFoundResponse.response(),
       unprocessable_entity: JsonErrorResponse.response()
     ]
+  )
 
   @doc """
     Function to handle GET requests to `/api/v2/transactions/:transaction_hash_param/raw-trace` endpoint.
   """
   @spec raw_trace(Plug.Conn.t(), map()) :: Plug.Conn.t() | {atom(), any()}
   def raw_trace(conn, %{transaction_hash_param: transaction_hash_string} = params) do
-    with {:ok, transaction, _transaction_hash} <- validate_transaction(transaction_hash_string, params) do
+    with {:ok, transaction, _transaction_hash} <-
+           validate_transaction(transaction_hash_string, params) do
       if is_nil(transaction.block_number) do
         conn
         |> put_status(200)
@@ -663,7 +741,7 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
     end
   end
 
-  operation :token_transfers,
+  operation(:token_transfers,
     summary: "List token transfers within a specific transaction",
     description:
       "Retrieves token transfers that occurred within a specific transaction, with optional filtering by token type.",
@@ -692,13 +770,15 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
       not_found: NotFoundResponse.response(),
       unprocessable_entity: JsonErrorResponse.response()
     ]
+  )
 
   @doc """
     Function to handle GET requests to `/api/v2/transactions/:transaction_hash_param/token-transfers` endpoint.
   """
   @spec token_transfers(Plug.Conn.t(), map()) :: Plug.Conn.t() | {atom(), any()}
   def token_transfers(conn, %{transaction_hash_param: transaction_hash_string} = params) do
-    with {:ok, _transaction, transaction_hash} <- validate_transaction(transaction_hash_string, params) do
+    with {:ok, _transaction, transaction_hash} <-
+           validate_transaction(transaction_hash_string, params) do
       paging_options = paging_options(params)
 
       full_options =
@@ -724,13 +804,16 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
       |> put_status(200)
       |> render(:token_transfers, %{
         token_transfers:
-          token_transfers |> Instance.preload_nft(@api_true) |> maybe_preload_ens() |> maybe_preload_metadata(),
+          token_transfers
+          |> Instance.preload_nft(@api_true)
+          |> maybe_preload_ens()
+          |> maybe_preload_metadata(),
         next_page_params: next_page_params
       })
     end
   end
 
-  operation :internal_transactions,
+  operation(:internal_transactions,
     summary: "List internal transactions triggered during a specific transaction",
     description:
       "Retrieves internal transactions generated during the execution of a specific transaction. Useful for analyzing contract interactions and debugging failed transactions.",
@@ -739,7 +822,8 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
         define_paging_params(["index", "block_number", "transaction_index", "items_count"]),
     responses: [
       ok:
-        {"Internal transactions for the specified transaction, with pagination.", "application/json",
+        {"Internal transactions for the specified transaction, with pagination.",
+         "application/json",
          paginated_response(
            items: Schemas.InternalTransaction,
            next_page_params_example: %{
@@ -753,13 +837,19 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
       not_found: NotFoundResponse.response(),
       unprocessable_entity: JsonErrorResponse.response()
     ]
+  )
 
   @doc """
     Function to handle GET requests to `/api/v2/transactions/:transaction_hash_param/internal-transactions` endpoint.
   """
   @spec internal_transactions(Plug.Conn.t(), map()) :: Plug.Conn.t() | {atom(), any()}
   def internal_transactions(conn, %{transaction_hash_param: transaction_hash_string} = params) do
+<<<<<<< HEAD
     with {:ok, transaction, _transaction_hash} <- validate_transaction(transaction_hash_string, params) do
+=======
+    with {:ok, _transaction, transaction_hash} <-
+           validate_transaction(transaction_hash_string, params) do
+>>>>>>> eee85d534 (feegrant)
       full_options =
         @internal_transaction_necessity_by_association
         |> Keyword.merge(paging_options(params))
@@ -776,13 +866,14 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
       conn
       |> put_status(200)
       |> render(:internal_transactions, %{
-        internal_transactions: internal_transactions |> maybe_preload_ens() |> maybe_preload_metadata(),
+        internal_transactions:
+          internal_transactions |> maybe_preload_ens() |> maybe_preload_metadata(),
         next_page_params: next_page_params
       })
     end
   end
 
-  operation :logs,
+  operation(:logs,
     summary: "List event logs emitted during a specific transaction",
     description:
       "Retrieves event logs emitted during the execution of a specific transaction. Logs contain information about contract events and state changes.",
@@ -804,17 +895,25 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
       not_found: NotFoundResponse.response(),
       unprocessable_entity: JsonErrorResponse.response()
     ]
+  )
 
   @doc """
     Function to handle GET requests to `/api/v2/transactions/:transaction_hash_param/logs` endpoint.
   """
   @spec logs(Plug.Conn.t(), map()) :: Plug.Conn.t() | {atom(), any()}
   def logs(conn, %{transaction_hash_param: transaction_hash_string} = params) do
-    with {:ok, _transaction, transaction_hash} <- validate_transaction(transaction_hash_string, params) do
+    with {:ok, _transaction, transaction_hash} <-
+           validate_transaction(transaction_hash_string, params) do
       full_options =
         [
           necessity_by_association: %{
-            [address: [:names, :smart_contract, proxy_implementations_smart_contracts_association()]] => :optional
+            [
+              address: [
+                :names,
+                :smart_contract,
+                proxy_implementations_smart_contracts_association()
+              ]
+            ] => :optional
           }
         ]
         |> Keyword.merge(paging_options(params))
@@ -838,11 +937,13 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
     end
   end
 
-  operation :state_changes,
+  operation(:state_changes,
     summary: "Get on-chain state changes caused by a specific transaction",
-    description: "Retrieves state changes (balance changes, token transfers) caused by a specific transaction.",
+    description:
+      "Retrieves state changes (balance changes, token transfers) caused by a specific transaction.",
     parameters:
-      [transaction_hash_param() | base_params()] ++ define_state_changes_paging_params(["state_changes", "items_count"]),
+      [transaction_hash_param() | base_params()] ++
+        define_state_changes_paging_params(["state_changes", "items_count"]),
     responses: [
       ok: {
         "State changes caused by the specified transaction, with pagination.",
@@ -859,13 +960,15 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
       not_found: NotFoundResponse.response(),
       unprocessable_entity: JsonErrorResponse.response()
     ]
+  )
 
   @doc """
     Function to handle GET requests to `/api/v2/transactions/:transaction_hash_param/state-changes` endpoint.
   """
   @spec state_changes(Plug.Conn.t(), map()) :: Plug.Conn.t() | {atom(), any()}
   def state_changes(conn, %{transaction_hash_param: transaction_hash_string} = params) do
-    with {:ok, transaction, _transaction_hash} <- validate_transaction(transaction_hash_string, params) do
+    with {:ok, transaction, _transaction_hash} <-
+           validate_transaction(transaction_hash_string, params) do
       state_changes_plus_next_page =
         transaction
         |> TransactionStateHelper.state_changes(
@@ -883,11 +986,14 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
 
       conn
       |> put_status(200)
-      |> render(:state_changes, %{state_changes: state_changes, next_page_params: next_page_params})
+      |> render(:state_changes, %{
+        state_changes: state_changes,
+        next_page_params: next_page_params
+      })
     end
   end
 
-  operation :watchlist_transactions,
+  operation(:watchlist_transactions,
     summary: "List transactions in a user's watchlist",
     description: "Retrieves transactions in the authenticated user's watchlist.",
     parameters: base_params() ++ define_paging_params(["block_number", "index", "items_count"]),
@@ -906,6 +1012,7 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
       forbidden: ForbiddenResponse.response(),
       unprocessable_entity: JsonErrorResponse.response()
     ]
+  )
 
   @doc """
     Function to handle GET requests to `/api/v2/transactions/watchlist` endpoint.
@@ -920,7 +1027,8 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
         |> Keyword.merge(paging_options(params, [:validated]))
         |> Keyword.merge(@api_true)
 
-      {watchlist_names, transactions_plus_one} = Chain.fetch_watchlist_transactions(watchlist_id, full_options)
+      {watchlist_names, transactions_plus_one} =
+        Chain.fetch_watchlist_transactions(watchlist_id, full_options)
 
       {transactions, next_page} = split_list_by_page(transactions_plus_one)
 
@@ -936,9 +1044,10 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
     end
   end
 
-  operation :summary,
+  operation(:summary,
     summary: "Get a human-readable, LLM-based transaction summary",
-    description: "Retrieves a human-readable summary of what a transaction did, presented in natural language.",
+    description:
+      "Retrieves a human-readable summary of what a transaction did, presented in natural language.",
     parameters: base_params() ++ [transaction_hash_param(), just_request_body_param()],
     responses: [
       ok:
@@ -952,6 +1061,7 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
       not_found: NotFoundResponse.response(),
       unprocessable_entity: JsonErrorResponse.response()
     ]
+  )
 
   @doc """
     Function to handle GET requests to `/api/v2/transactions/:transaction_hash_param/summary` endpoint.
@@ -962,19 +1072,37 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
           | {:restricted_access, true}
           | {:transaction_interpreter_enabled, boolean}
           | Plug.Conn.t()
-  def summary(conn, %{transaction_hash_param: transaction_hash_string, just_request_body: true} = params) do
+  def summary(
+        conn,
+        %{transaction_hash_param: transaction_hash_string, just_request_body: true} = params
+      ) do
     options =
       [
         necessity_by_association: %{
-          [from_address: [:scam_badge, :names, :smart_contract, proxy_implementations_association()]] => :optional,
-          [to_address: [:scam_badge, :names, :smart_contract, proxy_implementations_association()]] => :optional
+          [
+            from_address: [
+              :scam_badge,
+              :names,
+              :smart_contract,
+              proxy_implementations_association()
+            ]
+          ] => :optional,
+          [
+            to_address: [
+              :scam_badge,
+              :names,
+              :smart_contract,
+              proxy_implementations_association()
+            ]
+          ] => :optional
         }
       ]
       |> Keyword.merge(@api_true)
 
     with {:transaction_interpreter_enabled, true} <-
            {:transaction_interpreter_enabled, TransactionInterpretationService.enabled?()},
-         {:ok, transaction, _transaction_hash} <- validate_transaction(transaction_hash_string, params, options) do
+         {:ok, transaction, _transaction_hash} <-
+           validate_transaction(transaction_hash_string, params, options) do
       conn
       |> json(TransactionInterpretationService.get_request_body(transaction))
     end
@@ -984,20 +1112,40 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
     options =
       [
         necessity_by_association: %{
-          [from_address: [:scam_badge, :names, :smart_contract, proxy_implementations_association()]] => :optional,
-          [to_address: [:scam_badge, :names, :smart_contract, proxy_implementations_association()]] => :optional
+          [
+            from_address: [
+              :scam_badge,
+              :names,
+              :smart_contract,
+              proxy_implementations_association()
+            ]
+          ] => :optional,
+          [
+            to_address: [
+              :scam_badge,
+              :names,
+              :smart_contract,
+              proxy_implementations_association()
+            ]
+          ] => :optional
         }
       ]
       |> Keyword.merge(@api_true)
 
     with {:transaction_interpreter_enabled, true} <-
            {:transaction_interpreter_enabled, TransactionInterpretationService.enabled?()},
-         {:ok, transaction, _transaction_hash} <- validate_transaction(transaction_hash_string, params, options) do
+         {:ok, transaction, _transaction_hash} <-
+           validate_transaction(transaction_hash_string, params, options) do
       {response, code} =
         case TransactionInterpretationService.interpret(transaction) do
-          {:ok, response} -> {response, 200}
-          {:error, %Jason.DecodeError{}} -> {%{error: "Error while transaction interpreter response decoding"}, 500}
-          {{:error, error}, code} -> {%{error: error}, code}
+          {:ok, response} ->
+            {response, 200}
+
+          {:error, %Jason.DecodeError{}} ->
+            {%{error: "Error while transaction interpreter response decoding"}, 500}
+
+          {{:error, error}, code} ->
+            {%{error: error}, code}
         end
 
       conn
@@ -1006,7 +1154,7 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
     end
   end
 
-  operation :blobs,
+  operation(:blobs,
     summary: "List blobs for a transaction",
     description: "Retrieves blobs for a specific transaction (Ethereum only).",
     parameters: [transaction_hash_param() | base_params()],
@@ -1025,13 +1173,15 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
       not_found: NotFoundResponse.response(),
       unprocessable_entity: JsonErrorResponse.response()
     ]
+  )
 
   @doc """
   Function to handle GET requests to `/api/v2/transactions/:transaction_hash_param/blobs` endpoint.
   """
   @spec blobs(Plug.Conn.t(), map()) :: Plug.Conn.t() | {atom(), any()}
   def blobs(conn, %{transaction_hash_param: transaction_hash_string} = params) do
-    with {:ok, _transaction, transaction_hash} <- validate_transaction(transaction_hash_string, params) do
+    with {:ok, _transaction, transaction_hash} <-
+           validate_transaction(transaction_hash_string, params) do
       full_options = @api_true
 
       blobs = BeaconReader.transaction_to_blobs(transaction_hash, full_options)
@@ -1043,9 +1193,10 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
     end
   end
 
-  operation :stats,
+  operation(:stats,
     summary: "Get transaction statistics",
-    description: "Retrieves statistics for transactions, including counts and fee summaries for the last 24 hours.",
+    description:
+      "Retrieves statistics for transactions, including counts and fee summaries for the last 24 hours.",
     responses: [
       ok:
         {"Transaction statistics.", "application/json",
@@ -1067,6 +1218,7 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
          }},
       unprocessable_entity: JsonErrorResponse.response()
     ]
+  )
 
   @doc """
   Function to handle GET requests to `/api/v2/transactions/stats` endpoint.
@@ -1091,10 +1243,12 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
     )
   end
 
-  operation :beacon_deposits,
+  operation(:beacon_deposits,
     summary: "List beacon deposits in a transaction",
-    description: "Retrieves beacon deposits included in a specific transaction with pagination support.",
-    parameters: [transaction_hash_param() | base_params()] ++ define_paging_params(["index", "items_count"]),
+    description:
+      "Retrieves beacon deposits included in a specific transaction with pagination support.",
+    parameters:
+      [transaction_hash_param() | base_params()] ++ define_paging_params(["index", "items_count"]),
     responses: [
       ok:
         {"Beacon deposits for transaction.", "application/json",
@@ -1109,6 +1263,7 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
       not_found: NotFoundResponse.response(),
       unprocessable_entity: JsonErrorResponse.response()
     ]
+  )
 
   @doc """
   Handles `api/v2/transactions/:transaction_hash_param/beacon/deposits` endpoint.
@@ -1139,13 +1294,27 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
           | {:restricted_access, true}
           | Plug.Conn.t()
   def beacon_deposits(conn, %{transaction_hash_param: transaction_hash_string} = params) do
-    with {:ok, _transaction, transaction_hash} <- validate_transaction(transaction_hash_string, params) do
+    with {:ok, _transaction, transaction_hash} <-
+           validate_transaction(transaction_hash_string, params) do
       full_options =
         [
           necessity_by_association: %{
-            [from_address: [:scam_badge, :names, :smart_contract, proxy_implementations_association()]] => :optional,
-            [withdrawal_address: [:scam_badge, :names, :smart_contract, proxy_implementations_association()]] =>
-              :optional
+            [
+              from_address: [
+                :scam_badge,
+                :names,
+                :smart_contract,
+                proxy_implementations_association()
+              ]
+            ] => :optional,
+            [
+              withdrawal_address: [
+                :scam_badge,
+                :names,
+                :smart_contract,
+                proxy_implementations_association()
+              ]
+            ] => :optional
           },
           api?: true
         ]
@@ -1182,11 +1351,14 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
           | {:restricted_access, true}
           | {:ok, Transaction.t(), Hash.t()}
   def validate_transaction(transaction_hash_string, params, options \\ @api_true) do
-    with {:format, {:ok, transaction_hash}} <- {:format, Chain.string_to_full_hash(transaction_hash_string)},
+    with {:format, {:ok, transaction_hash}} <-
+           {:format, Chain.string_to_full_hash(transaction_hash_string)},
          {:not_found, {:ok, transaction}} <-
            {:not_found, Chain.hash_to_transaction(transaction_hash, options)},
-         {:ok, false} <- AccessHelper.restricted_access?(to_string(transaction.from_address_hash), params),
-         {:ok, false} <- AccessHelper.restricted_access?(to_string(transaction.to_address_hash), params) do
+         {:ok, false} <-
+           AccessHelper.restricted_access?(to_string(transaction.from_address_hash), params),
+         {:ok, false} <-
+           AccessHelper.restricted_access?(to_string(transaction.to_address_hash), params) do
       {:ok, transaction, transaction_hash}
     end
   end

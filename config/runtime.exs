@@ -12,7 +12,7 @@ config :logger, :default_handler,
     (if config_env() == :prod do
        LoggerJSON.Formatters.Basic.new(metadata: ConfigHelper.logger_backend_metadata())
      else
-       Logger.Formatter.new()
+       Logger.Formatter.new(metadata: ConfigHelper.logger_backend_metadata())
      end)
 
 config :logger, :api, metadata: ConfigHelper.logger_metadata(), metadata_filter: [application: :api]
@@ -292,10 +292,10 @@ config :explorer,
   coin_name: System.get_env("COIN_NAME") || "ETH",
   allowed_solidity_evm_versions:
     System.get_env("CONTRACT_VERIFICATION_ALLOWED_SOLIDITY_EVM_VERSIONS") ||
-      "homestead,tangerineWhistle,spuriousDragon,byzantium,constantinople,petersburg,istanbul,berlin,london,paris,shanghai,cancun,prague,default",
+      "homestead,tangerineWhistle,spuriousDragon,byzantium,constantinople,petersburg,istanbul,berlin,london,paris,shanghai,cancun,prague,osaka,default",
   allowed_vyper_evm_versions:
     System.get_env("CONTRACT_VERIFICATION_ALLOWED_VYPER_EVM_VERSIONS") ||
-      "byzantium,constantinople,petersburg,istanbul,berlin,paris,shanghai,cancun,default",
+      "byzantium,constantinople,petersburg,istanbul,berlin,paris,shanghai,cancun,osaka,default",
   include_uncles_in_average_block_time: ConfigHelper.parse_bool_env_var("UNCLES_IN_AVERAGE_BLOCK_TIME"),
   realtime_events_sender:
     (case app_mode do
@@ -879,21 +879,6 @@ config :explorer, Explorer.Chain.TokenTransfer,
 config :explorer, Explorer.Chain.Metrics.PublicMetrics,
   enabled: ConfigHelper.parse_bool_env_var("PUBLIC_METRICS_ENABLED", "false"),
   update_period_hours: ConfigHelper.parse_integer_env_var("PUBLIC_METRICS_UPDATE_PERIOD_HOURS", 24)
-
-config :explorer, Explorer.Chain.Metrics.IndexerMetrics,
-  enabled: ConfigHelper.parse_bool_env_var("INDEXER_METRICS_ENABLED", "true"),
-  specific_metrics_enabled?: %{
-    token_instances_not_uploaded_to_cdn_count:
-      ConfigHelper.parse_bool_env_var("INDEXER_METRICS_ENABLED_TOKEN_INSTANCES_NOT_UPLOADED_TO_CDN_COUNT", "false"),
-    failed_token_instances_metadata_count:
-      ConfigHelper.parse_bool_env_var("INDEXER_METRICS_ENABLED_FAILED_TOKEN_INSTANCES_METADATA_COUNT", "true"),
-    unfetched_token_instances_count:
-      ConfigHelper.parse_bool_env_var("INDEXER_METRICS_ENABLED_UNFETCHED_TOKEN_INSTANCES_COUNT", "true"),
-    missing_current_token_balances_count:
-      ConfigHelper.parse_bool_env_var("INDEXER_METRICS_ENABLED_MISSING_CURRENT_TOKEN_BALANCES_COUNT", "true"),
-    missing_archival_token_balances_count:
-      ConfigHelper.parse_bool_env_var("INDEXER_METRICS_ENABLED_MISSING_ARCHIVAL_TOKEN_BALANCES_COUNT", "true")
-  }
 
 config :explorer, Explorer.Chain.Filecoin.NativeAddress,
   network_prefix: ConfigHelper.parse_catalog_value("FILECOIN_NETWORK_PREFIX", ["f", "t"], true, "f")
@@ -1622,6 +1607,21 @@ config :indexer, Indexer.Utils.EventNotificationsCleaner,
     app_mode == :indexer && ConfigHelper.parse_bool_env_var("INDEXER_DB_EVENT_NOTIFICATIONS_CLEANUP_ENABLED", "true"),
   max_age: ConfigHelper.parse_time_env_var("INDEXER_DB_EVENT_NOTIFICATIONS_CLEANUP_MAX_AGE", "5m")
 
+config :indexer, Indexer.Prometheus.Metrics,
+  enabled: app_mode in [:indexer, :all] && ConfigHelper.parse_bool_env_var("INDEXER_METRICS_ENABLED", "true"),
+  specific_metrics_enabled?: %{
+    token_instances_not_uploaded_to_cdn_count:
+      ConfigHelper.parse_bool_env_var("INDEXER_METRICS_ENABLED_TOKEN_INSTANCES_NOT_UPLOADED_TO_CDN_COUNT", "false"),
+    failed_token_instances_metadata_count:
+      ConfigHelper.parse_bool_env_var("INDEXER_METRICS_ENABLED_FAILED_TOKEN_INSTANCES_METADATA_COUNT", "true"),
+    unfetched_token_instances_count:
+      ConfigHelper.parse_bool_env_var("INDEXER_METRICS_ENABLED_UNFETCHED_TOKEN_INSTANCES_COUNT", "true"),
+    missing_current_token_balances_count:
+      ConfigHelper.parse_bool_env_var("INDEXER_METRICS_ENABLED_MISSING_CURRENT_TOKEN_BALANCES_COUNT", "true"),
+    missing_archival_token_balances_count:
+      ConfigHelper.parse_bool_env_var("INDEXER_METRICS_ENABLED_MISSING_ARCHIVAL_TOKEN_BALANCES_COUNT", "true")
+  }
+
 config :ex_aws,
   json_codec: Jason,
   access_key_id: System.get_env("NFT_MEDIA_HANDLER_AWS_ACCESS_KEY_ID"),
@@ -1643,7 +1643,7 @@ config :nft_media_handler,
   tmp_dir: "./temp",
   remote?: nmh_remote?,
   worker?: nmh_worker?,
-  r2_folder: System.get_env("NFT_MEDIA_HANDLER_BUCKET_FOLDER"),
+  r2_folder: ConfigHelper.parse_path_env_var("NFT_MEDIA_HANDLER_BUCKET_FOLDER"),
   standalone_media_worker?: nmh_enabled? && nmh_remote? && nmh_worker?,
   worker_concurrency: ConfigHelper.parse_integer_env_var("NFT_MEDIA_HANDLER_WORKER_CONCURRENCY", 10),
   worker_batch_size: ConfigHelper.parse_integer_env_var("NFT_MEDIA_HANDLER_WORKER_BATCH_SIZE", 10),

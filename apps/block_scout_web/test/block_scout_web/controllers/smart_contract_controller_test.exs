@@ -2,8 +2,10 @@ defmodule BlockScoutWeb.SmartContractControllerTest do
   use BlockScoutWeb.ConnCase
 
   import Mox
+  import Mock
 
   alias Explorer.Chain.{Address, Hash}
+  alias Explorer.Chain.SmartContract.Proxy.Models.Implementation
   alias Explorer.{Factory, TestHelper}
 
   setup :set_mox_from_context
@@ -142,6 +144,28 @@ defmodule BlockScoutWeb.SmartContractControllerTest do
 
       assert conn.status == 200
       assert conn.assigns.read_only_functions == []
+    end
+
+    test "handles nil address_hashes in implementation", %{conn: conn} do
+      token_contract_address = insert(:contract_address)
+      insert(:smart_contract, address_hash: token_contract_address.hash, contract_code_md5: "123")
+
+      with_mock Implementation, [:passthrough],
+        get_implementation: fn _, _ -> %Implementation{address_hashes: nil} end do
+        path =
+          smart_contract_path(BlockScoutWeb.Endpoint, :index,
+            hash: token_contract_address.hash,
+            type: :proxy,
+            action: :read
+          )
+
+        conn =
+          build_conn()
+          |> put_req_header("x-requested-with", "xmlhttprequest")
+          |> get(path)
+
+        assert conn.status == 200
+      end
     end
   end
 

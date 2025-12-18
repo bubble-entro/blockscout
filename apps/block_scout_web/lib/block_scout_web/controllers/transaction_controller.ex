@@ -239,8 +239,20 @@ defmodule BlockScoutWeb.TransactionController do
              to_string(transaction.to_address_hash),
              transaction.block_number
            ) do
-        {:ok, %{granter: granter, period_can_spend: val}} ->
-          %{amount: Decimal.new(val), granter: granter}
+        {:ok, %{granter: granter, period_can_spend: remaining}} ->
+          # Use Transaction.fee to calculate the subsidized amount (transaction fee)
+          subsidized_amount =
+            case Explorer.Chain.Transaction.fee(transaction, :wei) do
+              {:actual, value} -> Decimal.new(value)
+              {:maximum, value} -> Decimal.new(value)
+              _ -> Decimal.new(0)
+            end
+
+          %{
+            amount: subsidized_amount,
+            granter: granter,
+            remaining: Decimal.new(remaining)
+          }
 
         _ ->
           nil

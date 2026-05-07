@@ -43,7 +43,7 @@ defmodule BlockScoutWeb.Application do
       alias BlockScoutWeb.Utility.EventHandlersMetrics
       alias Explorer.Chain.Metrics, as: ChainMetrics
 
-      PhoenixInstrumenter.setup()
+      # PhoenixInstrumenter.setup()
       Exporter.setup()
       PublicExporter.setup()
 

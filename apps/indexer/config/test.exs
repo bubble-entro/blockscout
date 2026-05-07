@@ -4,6 +4,11 @@ config :indexer, Indexer.Tracer, disabled?: false
 
 config :indexer, Indexer.Block.Catchup.MissingRangesCollector, future_check_interval: 1
 
+config :indexer,
+  block_interval: 0,
+  subscribe_named_arguments: [transport: nil, transport_options: []],
+  realtime_overrides: %{}
+
 config :logger, :indexer,
   level: :warn,
   path: Path.absname("logs/test/indexer.log")

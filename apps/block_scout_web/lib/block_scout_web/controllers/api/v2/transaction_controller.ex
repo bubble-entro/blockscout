@@ -218,7 +218,7 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
              to_string(transaction.to_address_hash),
              transaction.block_number
            ) do
-        {:ok, %{granter: granter, period_can_spend: remaining}} ->
+        {:ok, %{grant_type: grant_type, granter: granter, remaining: remaining}} ->
           # Use Transaction.fee to calculate the subsidized amount (transaction fee)
           subsidized_amount =
             case Explorer.Chain.Transaction.fee(transaction, :wei) do
@@ -229,8 +229,9 @@ defmodule BlockScoutWeb.API.V2.TransactionController do
 
           %{
             amount: subsidized_amount,
+            grant_type: Atom.to_string(grant_type),
             granter: granter,
-            remaining: to_string(remaining)
+            remaining: if(is_nil(remaining), do: nil, else: to_string(remaining))
           }
 
         _ ->

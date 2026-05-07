@@ -496,10 +496,16 @@
             <dl class="row">
               <dt class="col-sm-3 col-lg-2 text-muted">
                 <%= render BlockScoutWeb.CommonComponentsView, "_i_tooltip_2.html",
-                  text: gettext("The remaining gas fee grant allowance for the sender.") %>
+                  text: gettext("The remaining gas fee grant allowance for the sender. Unlimited grants are shown as Unlimited.") %>
                 <%= gettext "Gas Grant Remaining" %>
               </dt>
-              <dd class="col-sm-9 col-lg-10"> <%= format_wei_value(Wei.from(@gas_fee_grant_info.amount, :wei), :ether) %> </dd>
+              <dd class="col-sm-9 col-lg-10">
+                <%= if is_nil(@gas_fee_grant_info.remaining) do %>
+                  <%= gettext("Unlimited") %>
+                <% else %>
+                  <%= format_wei_value(Wei.from(@gas_fee_grant_info.remaining, :wei), :ether) %>
+                <% end %>
+              </dd>
             </dl>
           <% end %>
           <%= if Application.get_env(:explorer, :chain_type) == :optimism do %>
